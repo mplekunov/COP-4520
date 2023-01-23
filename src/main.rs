@@ -1,28 +1,36 @@
 use std::{
-    collections::{HashSet},
     fs,
     io::Write,
     sync::{Arc, Mutex},
-    thread::{self, ThreadId},
+    thread::{self},
     time::Instant,
 };
+
+const MAX_NUM: u64 = 100_000_000;
+const NUM_THREADS: u32 = 8;
 
 fn main() {
     let start = Instant::now();
 
     let counter = Arc::new(Mutex::new(1));
-
-    let prime_vector: Arc<Mutex<Vec<bool>>> = Arc::new(Mutex::new(vec![false; 100_000_001]));
-    let mut thread_vector = Vec::new();
+    let prime_vector: Arc<Mutex<Vec<bool>>> =
+        Arc::new(Mutex::new(vec![false; (MAX_NUM + 1) as usize]));
     let residual_primes_found = Arc::new(Mutex::new(false));
 
-    for _ in 0..8 {
+    let mut thread_vector = Vec::new();
+
+    for _ in 0..NUM_THREADS {
         let counter_copy = counter.clone();
         let prime_vector_copy = prime_vector.clone();
         let residual_primes_found_copy = residual_primes_found.clone();
 
         let thread = thread::spawn(move || {
-            sieve_of_atking(counter_copy, prime_vector_copy, residual_primes_found_copy, 100_000_000);
+            sieve_of_atking(
+                counter_copy,
+                prime_vector_copy,
+                residual_primes_found_copy,
+                MAX_NUM,
+            );
         });
 
         thread_vector.push(thread);
@@ -78,7 +86,12 @@ fn write_to_file(file_name: &str, data: &[u8]) {
     fi.write_all(data).unwrap();
 }
 
-fn sieve_of_atking(counter: Arc<Mutex<u64>>, prime_vector: Arc<Mutex<Vec<bool>>>, residual_primes_found: Arc<Mutex<bool>>, num: u64) {
+fn sieve_of_atking(
+    counter: Arc<Mutex<u64>>,
+    prime_vector: Arc<Mutex<Vec<bool>>>,
+    residual_primes_found: Arc<Mutex<bool>>,
+    num: u64,
+) {
     if num > 2 {
         prime_vector.lock().unwrap()[2] = true;
     }
@@ -119,15 +132,17 @@ fn sieve_of_atking(counter: Arc<Mutex<u64>>, prime_vector: Arc<Mutex<Vec<bool>>>
             y += 1;
         }
 
-        let mut counter_locked = counter.lock().unwrap();
-        x = *counter_locked;
-        *counter_locked += 1;
+        {
+            let mut counter_locked = counter.lock().unwrap();
+            x = *counter_locked;
+            *counter_locked += 1;
+        }
     }
 
     for index in index_vector {
         prime_vector.lock().unwrap()[index] ^= true;
     }
- 
+
     if !*residual_primes_found.lock().unwrap() {
         {
             *residual_primes_found.lock().unwrap() = true;
@@ -138,14 +153,14 @@ fn sieve_of_atking(counter: Arc<Mutex<u64>>, prime_vector: Arc<Mutex<Vec<bool>>>
         while r * r <= num {
             if prime_vector.lock().unwrap()[r as usize] {
                 let mut i = r * r;
-    
+
                 while i <= num {
                     prime_vector.lock().unwrap()[i as usize] = false;
-    
+
                     i += r * r;
                 }
             }
-    
+
             r += 1;
         }
     }
