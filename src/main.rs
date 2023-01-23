@@ -3,7 +3,7 @@ use std::{
     io::Write,
     sync::{Arc, Mutex},
     thread::{self},
-    time::Instant
+    time::Instant,
 };
 
 const MAX_NUM: u64 = 100_000_000;
@@ -12,44 +12,9 @@ const NUM_THREADS: u32 = 8;
 fn main() {
     let start = Instant::now();
 
-    let counter = Arc::new(Mutex::new(1));
-    let prime_vector: Arc<Mutex<Vec<bool>>> =
-        Arc::new(Mutex::new(vec![false; (MAX_NUM + 1) as usize]));
-    let residual_primes_found = Arc::new(Mutex::new(false));
-
-    let mut thread_vector = Vec::new();
-
-    for _ in 0..NUM_THREADS {
-        let counter_copy = counter.clone();
-        let prime_vector_copy = prime_vector.clone();
-        let residual_primes_found_copy = residual_primes_found.clone();
-
-        let thread = thread::spawn(move || {
-            sieve_of_atking(
-                counter_copy,
-                prime_vector_copy,
-                residual_primes_found_copy,
-                MAX_NUM,
-            );
-        });
-
-        thread_vector.push(thread);
-    }
-
-    for thread in thread_vector {
-        thread.join().unwrap();
-    }
+    let mut primes = sieve_of_atking(NUM_THREADS, MAX_NUM);
 
     let duration = start.elapsed();
-
-    let prime_vector_copy = prime_vector.lock().unwrap().clone();
-
-    let mut primes: Vec<u64> = Vec::new();
-    for val in 0..prime_vector_copy.len() {
-        if prime_vector_copy[val] {
-            primes.push(val as u64);
-        }
-    }
 
     let mut sum: u64 = 0;
 
@@ -86,55 +51,66 @@ fn write_to_file(file_name: &str, data: &[u8]) {
     fi.write_all(data).unwrap();
 }
 
-fn sieve_of_eratosthenes(
-    counter: Arc<Mutex<u64>>,
-    prime_vector: Arc<Mutex<Vec<bool>>>,
-    num: u64
-) {
-    {
-        prime_vector.lock().unwrap()[0] = false;
-        prime_vector.lock().unwrap()[1] = false;
-    }
+fn sieve_of_atking(num_threads: u32, num: u64) -> Vec<u64> {
+    let counter: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
 
-    let mut p: u64;
+    let mut sieve_primes: Vec<bool> = vec![false; (num + 1) as usize];
 
-    {
-        let mut counter_locked = counter.lock().unwrap();
-        p = *counter_locked;
-        *counter_locked += 1;
-    }
-
-    while p * p <= num  {
-        if prime_vector.lock().unwrap()[p as usize] {
-            let mut i = p * p;
-
-            while i <= num {
-                prime_vector.lock().unwrap()[i as usize] = false;
-                i += p;
-            }
-        }
-     
-        {
-            let mut counter_locked = counter.lock().unwrap();
-            p = *counter_locked;
-            *counter_locked += 1;
-        }
-    }
-}
-
-fn sieve_of_atking(
-    counter: Arc<Mutex<u64>>,
-    prime_vector: Arc<Mutex<Vec<bool>>>,
-    residual_primes_found: Arc<Mutex<bool>>,
-    num: u64,
-) {
     if num > 2 {
-        prime_vector.lock().unwrap()[2] = true;
+        sieve_primes[2] = true;
     }
 
     if num > 3 {
-        prime_vector.lock().unwrap()[3] = true;
+        sieve_primes[3] = true;
     }
+
+    let mut threads = Vec::new();
+
+    for _ in 0..num_threads {
+        let counter_copy = counter.clone();
+
+        threads.push(thread::spawn(move || {
+            sieve_of_atking_thread(counter_copy, num)
+        }));
+    }
+
+    for thread in threads {
+        let index_vector = thread.join().unwrap();
+
+        for index in index_vector {
+            sieve_primes[index] ^= true;
+        }
+    }
+
+    let mut r = 5;
+
+    while r * r <= num {
+        if sieve_primes[r as usize] {
+            let mut i = r * r;
+
+            while i <= num {
+                sieve_primes[i as usize] = false;
+
+                i += r * r;
+            }
+        }
+
+        r += 1;
+    }
+
+    let mut primes: Vec<u64> = Vec::new();
+
+    for val in 0..sieve_primes.len() {
+        if sieve_primes[val] {
+            primes.push(val as u64);
+        }
+    }
+
+    return primes;
+}
+
+fn sieve_of_atking_thread(counter: Arc<Mutex<u64>>, num: u64) -> Vec<usize> {
+    let mut index_vector: Vec<usize> = Vec::new();
 
     let mut x;
 
@@ -143,8 +119,6 @@ fn sieve_of_atking(
         x = *counter_locked;
         *counter_locked += 1;
     }
-
-    let mut index_vector: Vec<usize> = Vec::new();
 
     while x * x <= num {
         let mut y = 1;
@@ -175,29 +149,5 @@ fn sieve_of_atking(
         }
     }
 
-    for index in index_vector {
-        prime_vector.lock().unwrap()[index] ^= true;
-    }
-
-    if !*residual_primes_found.lock().unwrap() {
-        {
-            *residual_primes_found.lock().unwrap() = true;
-        }
-
-        let mut r = 5;
-
-        while r * r <= num {
-            if prime_vector.lock().unwrap()[r as usize] {
-                let mut i = r * r;
-
-                while i <= num {
-                    prime_vector.lock().unwrap()[i as usize] = false;
-
-                    i += r * r;
-                }
-            }
-
-            r += 1;
-        }
-    }
+    return index_vector;
 }
