@@ -3,7 +3,7 @@ use std::{
     io::Write,
     sync::{Arc, Mutex},
     thread::{self},
-    time::Instant,
+    time::Instant, ops::AddAssign,
 };
 
 const MAX_NUM: u64 = 100_000_000;
@@ -56,30 +56,28 @@ fn sieve_of_atking(num_threads: u32, num: u64) -> Vec<u64> {
 
     let mut sieve_primes: Vec<bool> = vec![false; (num + 1) as usize];
 
-    if num > 2 {
+    if num >= 2 {
         sieve_primes[2] = true;
     }
 
-    if num > 3 {
+    if num >= 3 {
         sieve_primes[3] = true;
     }
 
-    let mut threads = Vec::new();
+    let mut threads = Vec::with_capacity(num_threads as usize);
 
     for _ in 0..num_threads {
         let counter_copy = counter.clone();
 
         threads.push(thread::spawn(move || {
-            sieve_of_atking_thread(counter_copy, num)
+            return sieve_of_atking_thread(counter_copy, num);
         }));
     }
 
     for thread in threads {
-        let index_vector = thread.join().unwrap();
+        let index_vector = &thread.join().unwrap();
 
-        for index in index_vector {
-            sieve_primes[index] ^= true;
-        }
+        index_vector.iter().for_each(|index| sieve_primes[*index] ^= true);
     }
 
     let mut r = 5;
@@ -98,26 +96,22 @@ fn sieve_of_atking(num_threads: u32, num: u64) -> Vec<u64> {
         r += 1;
     }
 
-    let mut primes: Vec<u64> = Vec::new();
+    let mut primes: Vec<u64> = Vec::with_capacity((num / 2) as usize);
 
-    for val in 0..sieve_primes.len() {
-        if sieve_primes[val] {
-            primes.push(val as u64);
-        }
-    }
+    sieve_primes.iter().enumerate().for_each(| (index, val) | if *val { primes.push(index as u64); });
 
     return primes;
 }
 
 fn sieve_of_atking_thread(counter: Arc<Mutex<u64>>, num: u64) -> Vec<usize> {
-    let mut index_vector: Vec<usize> = Vec::new();
+    let mut index_vector: Vec<usize> = Vec::with_capacity((num / 2) as usize);
 
     let mut x;
 
     {
         let mut counter_locked = counter.lock().unwrap();
         x = *counter_locked;
-        *counter_locked += 1;
+        (*counter_locked).add_assign(1);
     }
 
     while x * x <= num {
@@ -145,7 +139,7 @@ fn sieve_of_atking_thread(counter: Arc<Mutex<u64>>, num: u64) -> Vec<usize> {
         {
             let mut counter_locked = counter.lock().unwrap();
             x = *counter_locked;
-            *counter_locked += 1;
+            (*counter_locked).add_assign(1);
         }
     }
 
