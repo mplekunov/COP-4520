@@ -3,7 +3,7 @@ use std::{
     io::Write,
     sync::{Arc, Mutex},
     thread::{self},
-    time::Instant,
+    time::Instant
 };
 
 const MAX_NUM: u64 = 100_000_000;
@@ -42,7 +42,7 @@ fn main() {
 
     let duration = start.elapsed();
 
-    let prime_vector_copy = prime_vector.lock().unwrap();
+    let prime_vector_copy = prime_vector.lock().unwrap().clone();
 
     let mut primes: Vec<u64> = Vec::new();
     for val in 0..prime_vector_copy.len() {
@@ -84,6 +84,42 @@ fn write_to_file(file_name: &str, data: &[u8]) {
         .unwrap();
 
     fi.write_all(data).unwrap();
+}
+
+fn sieve_of_eratosthenes(
+    counter: Arc<Mutex<u64>>,
+    prime_vector: Arc<Mutex<Vec<bool>>>,
+    num: u64
+) {
+    {
+        prime_vector.lock().unwrap()[0] = false;
+        prime_vector.lock().unwrap()[1] = false;
+    }
+
+    let mut p: u64;
+
+    {
+        let mut counter_locked = counter.lock().unwrap();
+        p = *counter_locked;
+        *counter_locked += 1;
+    }
+
+    while p * p <= num  {
+        if prime_vector.lock().unwrap()[p as usize] {
+            let mut i = p * p;
+
+            while i <= num {
+                prime_vector.lock().unwrap()[i as usize] = false;
+                i += p;
+            }
+        }
+     
+        {
+            let mut counter_locked = counter.lock().unwrap();
+            p = *counter_locked;
+            *counter_locked += 1;
+        }
+    }
 }
 
 fn sieve_of_atking(
