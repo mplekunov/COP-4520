@@ -24,7 +24,9 @@ The results of those runs are:
     - Average: 6.9 sec. 
 - 14 Threads: 
     - Average: 7.5 sec.
+
 As you might have noticed, more threads don’t necessarily mean faster code... In fact, there is a downside and limitations that one can hit fast when doing multi-threading programming. Specifically, what we can notice here is that the performance seems to degrade as more threads are being introduced. The reason for that consists of several parts:
+
 1. When threads are created, it allocates virtual memory for its stack and private data structures... As such, the more threads we try to spawn, the more physical resources we will need to even run our code.
 2. Another problem is in Time Slicing or Round Robing scheduling which works in a way that it gives every process an "equal opportunity" to use CPU... When we spawn too many threads, they begin to fight each other for accessing the real memory and thus, degrade performance.
 
